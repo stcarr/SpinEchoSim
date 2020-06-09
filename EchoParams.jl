@@ -14,9 +14,10 @@ mutable struct EchoParams
     Iz
     UL90
     UR90
+    Lj_list
     
     function EchoParams(dt, nτ, ω, α, M_op, Iz, UL90, UR90)
         
-        new(dt, nτ, ω, α, M_op, Iz, UL90, UR90)
+        new(dt, nτ, ω, α, M_op, Iz, UL90, UR90, nothing)
     end
 end
