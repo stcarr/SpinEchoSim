@@ -1,6 +1,8 @@
 # see :https://arxiv.org/abs/1510.08634
 #       -> Sec. 1 (Vec-ing) is in column major format, so easy implementation in Julia
 
+using StaticArrays
+
 # convert Hamiltonian from Hilbert space to Liouville space
 function HamToSuper(H)
     # takes: H, the n x n Hamiltonian acting on the Hilbert space of a spinor
@@ -9,7 +11,7 @@ function HamToSuper(H)
     # |ρ(t)> = exp[-1i*L*dt]|ρ(0)>
     
     n = size(H,1)
-    Id = Matrix(I,n,n)
+    Id = SMatrix{n,n}(I)
     L = kron(Id,H) - kron(conj(H),Id) # used H hermitian to convert H^T -> H*
     
     return L
@@ -22,13 +24,17 @@ function JumpsToSuper(Lj_list)
     # returns: J_tot,   an n^2 x n^2 superoperator of all jumps
     
     n = size(Lj_list,2) # dimension of system
-    J_tot = zeros(n^2,n^2) # allocate
+    if (n > 0)
+        J_tot = JumpToSuper(Lj_list[1])
 
-    nJ = size(Lj_list,1) # number of jump ops.
-    for j = 1:nJ
-        J_tot = J_tot + JumpToSuper(Lj_list[j,:,:])
+        nJ = size(Lj_list,1) # number of jump ops.
+        for j = 2:nJ
+            J_tot = J_tot + JumpToSuper(Lj_list[j])
+        end
+        return J_tot
+    else
+        return nothing
     end
-    return J_tot
 end
 
 # convert Hilbert-space non-Hermitian jump operator to a dissipative Liouville superoperator
@@ -36,7 +42,7 @@ function JumpToSuper(J)
     # takes:   J,   an  n   x n   jump operator in the Hilbert space of a spinor
     # returns: L_J, an  n^2 x n^2 superoperator acting on the Liouville space of ρ
     n = size(J,1)
-    Id = Matrix(I,n,n)
+    Id = SMatrix{n,n}(I)
     L_J = kron(transpose(J'), J) - 0.5*( kron(Id,J'*J) + kron( transpose(J'*J) ,Id) )
     return L_J 
 end
@@ -62,7 +68,7 @@ function leftop_H2L(A)
     # takes:   A,   an n   x n operator in Hilbert space
     # returns: A_L, an n^2 x 1 operator in Liouville space
     n = size(A,1)
-    Id = Matrix(I,n,n)
+    Id = SMatrix{n,n}(I)
     return kron(Id,A)
     
 end
@@ -72,7 +78,7 @@ function rightop_H2L(B)
     # takes:   B,   an n   x n operator in Hilbert space
     # returns: B_L, an n^2 x 1 operator in Liouville space
     n = size(B,1)
-    Id = Matrix(I,n,n)
+    Id = SMatrix{n,n}(I)
     return kron(transpose(B),Id)
     
 end
