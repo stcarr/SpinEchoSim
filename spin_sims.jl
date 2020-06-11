@@ -1,6 +1,7 @@
 include("liouville_tools.jl")
+using .LiouvilleTools
 
-function spin_echo_sim(spins, params)   
+function spin_echo_sim(params)   
     # initialize M_list
     M_list = [];
     
@@ -8,44 +9,51 @@ function spin_echo_sim(spins, params)
     UR90 = params.UR90
     
     # 90 pulse
-    ρ_list = [UL90*ρ*UR90 for ρ in spins.ρ_init];
+    ρ_list = [UL90*ρ*UR90 for ρ in params.ρ_init];
     
     # first tau
     t0 = 0.0;
-    ρ_list, M_list, t1 = time_propagate(ρ_list, M_list, t0, params.dt, params.nτ, spins, params)
+    ρ_list, M_list, t1 = time_propagate(ρ_list, M_list, t0, params.dt, params.nτ, params)
     
     # 180 pulse
     ρ_list = [UL90*UL90*ρ*UR90*UR90 for ρ in ρ_list];
         
     # second tau
-    ρ_list, M_list, t2 = time_propagate(ρ_list, M_list, t1, params.dt, 2*params.nτ, spins, params)
+    ρ_list, M_list, t2 = time_propagate(ρ_list, M_list, t1, params.dt, 2*params.nτ, params)
     
   return M_list
 
 end
 
-function time_propagate(ρ_list, M_list, t0, dt, nsteps, spins, params)
+function time_propagate(ρ_list, M_list, t0, dt, nsteps, params)
         
-    ν0 = spins.ν0 # central freq.
-    ν = spins.ν # spin freqs.
-    P = spins.P # spin weights
+    # spectrum info
+    ν0 = params.ν0 # central freq.
+    ν = params.ν # spin freqs.
+    P = params.P # spin weights
     nS = size(P,1) # number of spins
     
-    M_op = params.M_op # magnetization op
-    
+    # operators
+    M_op = params.M_op
     Iz = params.Iz
+    
+    # interaction parameters
     α = params.α
     ω = params.ω
+    
+    # initial time
     t = t0;
 
+    # initial magnetization
     M = sum([P[j].*tr(M_op*ρ_list[j]) for j = 1:nS]);
     
+    # time evolve
     for idx = 1:nsteps
         
-        t = t + dt;
+        t += dt;
         
         
-        Oprime = getOprime(t, M, spins, params)
+        Oprime = getOprime(t, M, params)
 
         UL = [exp(-1im*( -(ν[j]-ν0)*Iz - α*cos(ω*t)*Oprime )*dt) for j = 1:nS];
         UR = [exp( 1im*( -(ν[j]-ν0)*Iz - α*cos(ω*t)*Oprime )*dt) for j = 1:nS];        
@@ -63,9 +71,9 @@ function time_propagate(ρ_list, M_list, t0, dt, nsteps, spins, params)
     
 end
 
-function getOprime(t, M, spins, params)
+function getOprime(t, M, params)
    
-    ν0 = spins.ν0
+    ν0 = params.ν0
     # Oprime = (1im/2)*[0 -exp(-1im*ν0*t); exp(1im*ν0*t) 0]; # Iy
     Oprime = (1/4)*[0 conj(M); M 0] - (1/4)*[0 M*exp(-2im*ν0*t); conj(M)*exp(2im*ν0*t) 0]; # IyMy
     # Oprime = (1im/4)*[0 -conj(M); M 0] + (1im/4)*[0 -M*exp(-2im*ν0*t); conj(M)*exp(2im*ν0*t) 0]; # IyMx
@@ -76,7 +84,7 @@ function getOprime(t, M, spins, params)
     
 end
 
-function spin_echo_sim_liouville(spins, params)   
+function spin_echo_sim_liouville(params)   
     # initialize M_list
     M_list = [];
     
@@ -84,41 +92,47 @@ function spin_echo_sim_liouville(spins, params)
     UR90 = params.UR90    
     
     # 90 pulse
-    ρ_list_L = [dm_H2L(UL90*ρ*UR90) for ρ in spins.ρ_init];    
+    ρ_list_L = [dm_H2L(UL90*ρ*UR90) for ρ in params.ρ_init];    
     
     # first tau
     t0 = 0.0;
-    ρ_list_L, M_list, t1 = time_propagate_liouville(ρ_list_L, M_list, t0, params.dt, params.nτ, spins, params)
+    ρ_list_L, M_list, t1 = time_propagate_liouville(ρ_list_L, M_list, t0, params.dt, params.nτ, params)
     
     # 180 pulse
     ρ_list_L = [dm_H2L(UL90*UL90* dm_L2H(ρ_L) *UR90*UR90) for ρ_L in ρ_list_L];
         
     # second tau
-    ρ_list_L, M_list, t2 = time_propagate_liouville(ρ_list_L, M_list, t1, params.dt, 2*params.nτ, spins, params)
+    ρ_list_L, M_list, t2 = time_propagate_liouville(ρ_list_L, M_list, t1, params.dt, 2*params.nτ, params)
     
   return M_list
 
 end
 
-function time_propagate_liouville(ρ_list_L, M_list, t0, dt, nsteps, spins, params) 
+function time_propagate_liouville(ρ_list_L, M_list, t0, dt, nsteps, params) 
             
-    ν0 = spins.ν0 # central freq.
-    ν = spins.ν # spin freqs.
-    P = spins.P # spin weights
+    # spectrum info
+    ν0 = params.ν0 # central freq.
+    ν = params.ν # spin freqs.
+    P = params.P # spin weights
     nS = size(P,1) # number of spins
     
-    M_op = params.M_op # magnetization op
-    
+    # operators
+    M_op = params.M_op
     Iz = params.Iz
+    
+    # interaction parameters
     α = params.α
     ω = params.ω
-    t = t0
     
-    Lj_list = params.Lj_list
-    
-    J_L = JumpsToSuper(Lj_list) # get dissipative super operator (assumed constant in time)
-    M_L = leftop_H2L(M_op)
+    # initial time
+    t = t0;
 
+    # jump operators
+    Lj_list = params.Lj
+    J_L = JumpsToSuper(Lj_list) # get dissipative super operator (assumed constant in time)
+  
+    # initial magnetization    
+    M_L = leftop_H2L(M_op)
     M = sum([P[j].*tr_L(M_L*ρ_list_L[j]) for j = 1:nS])
     
     for idx = 1:nsteps
@@ -126,7 +140,7 @@ function time_propagate_liouville(ρ_list_L, M_list, t0, dt, nsteps, spins, para
         t = t + dt;
         
         
-        Oprime = getOprime(t, M, spins, params)
+        Oprime = getOprime(t, M, params)
         
         Ham_L = [HamToSuper( -(ν[j]-ν0)*Iz - α*cos(ω*t)*Oprime ) for j = 1:nS]
 
