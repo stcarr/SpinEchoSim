@@ -26,6 +26,7 @@ module SpinSimParams
         bw
         dfreq
         ρ0
+        r # positions of spins
 
         # dissipation parameters
         Lj # collection of jump operators
@@ -42,7 +43,7 @@ module SpinSimParams
             UL90 = exp(-1im*pi*Ix/2);
             UR90 = exp(1im*pi*Ix/2);
 
-            new(M_op, Iz, UL90, UR90, γ, τ, dt, α, ω, ν0, bw, dfreq, ρ0, nothing)
+            new(M_op, Iz, UL90, UR90, γ, τ, dt, α, ω, ν0, bw, dfreq, ρ0, nothing, nothing)
 
         end
 
@@ -72,6 +73,7 @@ module SpinSimParams
         dfreq
         ν
         P
+        r # positions of spins
         ρ_init
     
         # dissipation parameters
@@ -103,7 +105,7 @@ module SpinSimParams
             P = P/sum(P) # normalize!
             ρ_init = [params.ρ0 for i = 1:size(ν,1)];
 
-            new(M_op, Iz, UL90, UR90, γ, τ, dt, nτ, α, ω, ν0, bw, dfreq, ν, P, ρ_init, Lj)
+            new(M_op, Iz, UL90, UR90, γ, τ, dt, nτ, α, ω, ν0, bw, dfreq, ν, P, r, ρ_init, Lj)
 
         end
 
