@@ -2,6 +2,7 @@ module SpinSimParams
 
     using StaticArrays
     using StatsBase # for sample()
+    using Random, Distributions # for discrete sampling
 
 
     mutable struct make_parameters
@@ -26,7 +27,10 @@ module SpinSimParams
         bw
         dfreq
         ρ0
+        int_sample::Bool # integrated vs discrete sampling
+        nS::Int64
         r # positions of spins
+        M_stencil # stencil for evalution of local M
 
         # dissipation parameters
         Lj # collection of jump operators
@@ -43,7 +47,7 @@ module SpinSimParams
             UL90 = exp(-1im*pi*Ix/2);
             UR90 = exp(1im*pi*Ix/2);
 
-            new(M_op, Iz, UL90, UR90, γ, τ, dt, α, ω, ν0, bw, dfreq, ρ0, nothing, nothing)
+            new(M_op, Iz, UL90, UR90, γ, τ, dt, α, ω, ν0, bw, dfreq, ρ0, true, 1, nothing, nothing, nothing)
 
         end
 
@@ -73,7 +77,10 @@ module SpinSimParams
         dfreq
         ν
         P
+        int_sample::Bool
+        nS::Int64 # number of spins, if int_sample = false
         r # positions of spins
+        M_stencil
         ρ_init
     
         # dissipation parameters
@@ -99,13 +106,28 @@ module SpinSimParams
             end
 
             # calculate temporary variables
-            nτ = convert(Int64, round(τ*γ/dt));
-            ν = collect((ν0 - bw/2):dfreq:(ν0 + bw/2));
-            P = lorentzian.(ν, ν0, 0.05);
+            nτ = convert(Int64, round(τ*γ/dt))
+        
+            if (int_sample == true)
+                ν = collect((ν0 - bw/2):dfreq:(ν0 + bw/2))
+                P = lorentzian.(ν, ν0, 0.05)
+            else
+                ν = zeros(nS)
+                d = Cauchy(ν0,0.05*0.5)            
+                for v = 1:nS
+                    v_here = rand(d)
+                    while (abs(v_here - ν0) > bw/2)
+                        v_here = rand(d)
+                    end
+                    ν[v] = v_here; # random samples
+                end
+                P = ones(nS)./nS; # uniform probability
+            end
+        
             P = P/sum(P) # normalize!
-            ρ_init = [params.ρ0 for i = 1:size(ν,1)];
+            ρ_init = [params.ρ0 for i = 1:size(ν,1)]
 
-            new(M_op, Iz, UL90, UR90, γ, τ, dt, nτ, α, ω, ν0, bw, dfreq, ν, P, r, ρ_init, Lj)
+            new(M_op, Iz, UL90, UR90, γ, τ, dt, nτ, α, ω, ν0, bw, dfreq, ν, P, int_sample, nS, r, M_stencil, ρ_init, Lj)
 
         end
 

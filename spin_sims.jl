@@ -84,6 +84,111 @@ function getOprime(t, M, params)
     
 end
 
+function spin_echo_sim_localM(params)   
+    # initialize M_list
+    M_list = [];
+    
+    UL90 = params.UL90
+    UR90 = params.UR90
+    
+    # 90 pulse
+    ρ_list = [UL90*ρ*UR90 for ρ in params.ρ_init];
+    
+    # first tau
+    t0 = 0.0;
+    ρ_list, M_list, t1 = time_propagate_localM(ρ_list, M_list, t0, params.dt, params.nτ, params)
+    
+    # 180 pulse
+    ρ_list = [UL90*UL90*ρ*UR90*UR90 for ρ in ρ_list];
+        
+    # second tau
+    ρ_list, M_list, t2 = time_propagate_localM(ρ_list, M_list, t1, params.dt, 2*params.nτ, params)
+    
+  return M_list
+
+end
+
+function time_propagate_localM(ρ_list, M_list, t0, dt, nsteps, params)
+        
+    # spectrum info
+    ν0 = params.ν0 # central freq.
+    ν = params.ν # spin freqs.
+    P = params.P # spin weights
+    nS = size(P,1) # number of spins
+    
+    # operators
+    M_op = params.M_op
+    Iz = params.Iz
+    
+    # interaction parameters
+    α = params.α
+    ω = params.ω
+    
+    # initial time
+    t = t0;
+    
+    M_stencil = params.M_stencil
+    M_stencil_list = [M_stencil_shift(M_stencil,j) for j = 1:nS]
+
+    # initial magnetization    
+    M_eval = [tr(M_op*ρ_list[j]) for j = 1:nS]
+    M_avg = sum(P.*M_eval);
+    M_local = [sum( M_stencil_list[j].*M_eval ) for j = 1:nS]
+    
+    # time evolve
+    for idx = 1:nsteps
+        
+        t += dt;
+        
+        
+        Oprime_local = [getOprime(t, M_local[j], params) for j = 1:nS]
+
+        UL = [exp(-1im*( -(ν[j]-ν0)*Iz - α*cos(ω*t)*Oprime_local[j] )*dt) for j = 1:nS];
+        UR = [exp( 1im*( -(ν[j]-ν0)*Iz - α*cos(ω*t)*Oprime_local[j] )*dt) for j = 1:nS];        
+        
+        # time evolve
+        ρ_list = [UL[j]*ρ_list[j]*UR[j] for j = 1:nS];
+        
+        # update M and save value
+        M_eval = [tr(M_op*ρ_list[j]) for j = 1:nS]
+        M_avg = sum(P.*M_eval);
+        M_local = [sum( M_stencil_list[j].*M_eval ) for j = 1:nS]
+
+        push!(M_list, M_avg);
+        
+    end
+    
+    return ρ_list, M_list, t
+    
+end
+
+# changes origin of the "M_stencil", which computes a local <M> (instead of global) for Oprime
+function M_stencil_shift(M_stencil, spin_idx)
+    
+    nx = size(M_stencil,1)
+    ny = size(M_stencil,2)
+    nz = size(M_stencil,3)
+    
+    # find the [x,y,z] coordinate for the givin spin index
+    tar_loc_mat = zeros(nx*ny*nz,1)
+    tar_loc_mat[spin_idx] = 1
+    tar_loc_mat = reshape(tar_loc_mat, (nx,ny,nz))
+    target_vec = (findall(x->x==1, tar_loc_mat)[1])
+    
+    # turn that coordinate into an array, with -1 for one-based indexing (e.g. no shift if at [1,1,1])
+    shift_vec = zeros(3)
+    shift_vec[1] = target_vec[1]-1
+    shift_vec[2] = target_vec[2]-1
+    shift_vec[3] = target_vec[3]-1
+
+    # move the stencil to the spin center
+    M_new = circshift(M_stencil, shift_vec)
+    
+    # return vectorized stencil
+    return reshape(M_new, (nx*ny*nz,1) )
+    
+end
+
 function spin_echo_sim_liouville(params)   
     # initialize M_list
     M_list = [];
