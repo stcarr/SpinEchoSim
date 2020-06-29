@@ -3,7 +3,7 @@ module SpinSimParams
     using StaticArrays
     using StatsBase
 
-    function make_params(γ, τ, dt, α, ω, ν0, bw, nfreq, ρ0)
+    function make_params(α, ω, nfreq, bw = 0.5, γ = 2*pi*1e6, τ = 100e-6, dt = 2, ψ_0 = @SArray[1 0], ν0 = 10)
 
         f = Dict();
 
@@ -30,6 +30,12 @@ module SpinSimParams
         f["ν0"] = ν0;
         f["bw"] = bw;
         f["nfreq"] = nfreq;
+        f["sampling_type"] = "integrated";
+    
+        dim = size(ψ_0, 2);
+        ρ_temp = [ψ_0[i]*ψ_0[j] for i = 1:dim, j = 1:dim];
+        ρ0 = @SMatrix [ρ_temp[1,1] ρ_temp[1,2]; ρ_temp[2,1] ρ_temp[2,2]];
+        
         f["ρ0"] = ρ0;
 
         return f
@@ -54,15 +60,68 @@ module SpinSimParams
         f["nτ"] = convert(Int64, round(f["τ"]*f["γ"]/f["dt"]));
 
         # frequency sample & weights
-        f["ν"] = collect(LinRange(f["ν0"] - f["bw"]/2, f["ν0"] + f["bw"]/2, f["nfreq"]));
-        f["P"] = lorentzian.(f["ν"], f["ν0"], 0.05)/sum(lorentzian.(f["ν"], f["ν0"], 0.05));
-
+        if f["sampling_type"] == "integrated"
+            f["ν"] = collect(LinRange(f["ν0"] - f["bw"]/2, f["ν0"] + f["bw"]/2, f["nfreq"]));
+            f["P"] = lorentzian.(f["ν"], f["ν0"], 0.05)/sum(lorentzian.(f["ν"], f["ν0"], 0.05));
+        else
+            x = collect(LinRange(f["ν0"] - f["bw"]/2, f["ν0"] + f["bw"]/2, f["nfreq"]));
+            f["ν"] = sample(x, Weights(lorentzian.(x, f["ν0"], 0.05)), f["nfreq"]));
+            f["P"] = ones(length(f["ν"]),1)./length(f["ν"]);
+        end
+            
         # initial positions
         f["ρ_init"] = [f["ρ0"] for i = 1:f["nfreq"]];
 
         return f
 
     end
+
+    function make_tiles(params)
+        
+        temp_ρ = params["ρ_init"]
+        temp_ν = params["ν"]
+        temp_P = params["P"]
+        for idx = 2:params["nfreq"]
+            temp_ρ = cat(dims = 1, temp_ρ, params["ρ_init"]);
+            temp_ν = cat(dims = 1, temp_ν, params["ν"]);
+            temp_P = cat(dims = 1, temp_P, params["P"]);
+        end
+
+        params["ρ_init"] = temp_ρ;
+        params["ν"] = temp_ν;
+        params["P"] = temp_P/params["nfreq"];
+        params["nfreq"] = params["nfreq"]*params["nfreq"];
+    
+    end
+
+    function make_tiles_R(r, params, globalM = true)
+        
+        R = ();
+        nfreq = params["nfreq"];
+        
+        for i = 1:nfreq
+            rt = zeros(nfreq, 2);
+            for j = 1:nfreq
+                rt[j,:] = r[i,:];
+            end
+            idxt = sample(1:nfreq, nfreq, replace = false);
+            tile = (r[idxt,:] .+ sqrt(nfreq)*rt)/sqrt(nfreq);
+            R = (R..., tile);
+        end
+
+        if globalM
+            bigR = R[1]
+            for i = 2:nfreq
+                bigR = cat(dims = 1, bigR, R[i]);
+            end
+
+            R = bigR;
+        end
+        
+        return R
+    
+    end
+        
 
     function make_lattice(params)
     
