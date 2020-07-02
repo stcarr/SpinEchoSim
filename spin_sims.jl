@@ -190,7 +190,8 @@ function time_propagate_liouville(ρ_list_L, M_list, t0, dt, nsteps, params)
     # see if we are doing a local stencil for Magnetization
     if params["local_M_on"]
         M_stencil = params["M_stencil"]
-        M_stencil_list = [M_stencil_shift(M_stencil,j) for j = 1:nS]
+        M_stencil_vec = [P.*M_stencil_shift(M_stencil,j) for j = 1:nS]
+        M_stencil_vec = [M_stencil_vec[j]/sum(M_stencil_vec[j]) for j = 1:nS] # normalize ?
         M_local = [sum(M_stencil_list[j].*M_eval ) for j = 1:nS]
     end    
     
@@ -219,7 +220,7 @@ function time_propagate_liouville(ρ_list_L, M_list, t0, dt, nsteps, params)
 
         # local Magnetization update
         if params["local_M"]
-            M_local = [sum(M_stencil_list[j].*M_eval ) for j = 1:nS]
+            M_local = [sum(M_stencil_vec[j].*M_eval ) for j = 1:nS]
         end
         
     end
