@@ -59,7 +59,7 @@ function time_propagate(ρ_list, M_list, t0, dt, nsteps, params)
         M_stencil_vec = [M_stencil_vec[j]/sum(M_stencil_vec[j]) for j = 1:nS] # normalize ?
         M_local = [sum(M_stencil_vec[j].*M_eval ) for j = 1:nS]
     end
-
+    
     # time evolve
     for idx = 1:nsteps
         

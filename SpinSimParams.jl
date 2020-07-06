@@ -209,7 +209,7 @@ module SpinSimParams
         return G
     end
 
-    export make_params, make_temp_params, make_idx, make_lattice
+    export make_params, make_temp_params, make_idx, make_tiles, make_tiles_R, make_lattice
     export lorentzian, gaussian
 
 end
