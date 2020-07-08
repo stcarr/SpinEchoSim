@@ -94,13 +94,6 @@ module MTools
 
             end
 
-            for idx in 1:length(max_idx_list)
-                max_idx = max_idx_list[idx]
-                sg = max_sigmas[idx]
-                v = max_vs[idx]
-                sym = max_symms[idx]
-            end
-
             dict_here = Dict("min_idx"=>min_idx_list,"max_idx"=>max_idx_list,
                                 "sigmas"=>max_sigmas,"vals"=>max_vs,"symms"=>max_symms,
                                 "M"=>M_tar, "t"=>t_tar)
