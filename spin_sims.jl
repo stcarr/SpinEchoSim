@@ -7,27 +7,26 @@ function spin_echo_sim(params)
     # initialize M_list
     M_list = [];
     
-    UL90 = params["UL90"];
-    UR90 = params["UR90"];
+    U90 = params["U90"];
     
     # 90 pulse
-    ρ_list = [UL90*ρ*UR90 for ρ in params["ρ_init"]];
+    ψ_list = [U90*ψ for ψ in params["ψ_init"]];
     
     # first tau
     t0 = 0.0;
-    ρ_list, M_list, t1 = time_propagate(ρ_list, M_list, t0, params["dt"], params["nτ"], params)
+    ψ_list, M_list, t1 = time_propagate(ψ_list, M_list, t0, params["dt"], params["nτ"], params)
     
     # 180 pulse
-    ρ_list = [UL90*UL90*ρ*UR90*UR90 for ρ in ρ_list];
+    ψ_list = [U90*U90*ψ for ψ in ψ_list];
         
     # second tau
-    ρ_list, M_list, t2 = time_propagate(ρ_list, M_list, t1, params["dt"], 2*params["nτ"], params)
+    ψ_list, M_list, t2 = time_propagate(ψ_list, M_list, t1, params["dt"], 2*params["nτ"], params)
     
   return M_list
 
 end
 
-function time_propagate(ρ_list, M_list, t0, dt, nsteps, params)
+function time_propagate(ψ_list, M_list, t0, dt, nsteps, params)
         
     # spectrum info
     ν0 = params["ν0"] # central freq.
@@ -40,23 +39,18 @@ function time_propagate(ρ_list, M_list, t0, dt, nsteps, params)
     M_op = params["M_op"]
     Iz = params["Iz"]
     
-    # interaction parameters
-    α = params["α"]
-    ω = params["ω"]
-    k = params["k"]
-    
     # initial time
     t = t0;
 
     # initial magnetization    
-    M_eval = [tr(M_op*ρ_list[j]) for j = 1:nS]
+    M_eval = [tr(M_op*ψ*ψ') for ψ in ψ_list]
     M = sum(P.*M_eval);
     
     # see if we are doing a local stencil for Magnetization
     if params["local_M_on"]
         M_stencil = params["M_stencil"]
-        M_stencil_vec = [P.*M_stencil_shift(M_stencil,j) for j = 1:nS]
-        M_stencil_vec = [M_stencil_vec[j]/sum(M_stencil_vec[j]) for j = 1:nS] # normalize ?
+        M_stencil_vec = [P.*shift_stencil(M_stencil, vec, params["n"], params["pbc"]) for vec in params["spin_idx"]]
+        M_stencil_vec = [M_stencil_vec[j]/sum(M_stencil_vec[j]) for j = 1:nS] # normalize
         M_local = [sum(M_stencil_vec[j].*M_eval ) for j = 1:nS]
     end
     
@@ -66,20 +60,18 @@ function time_propagate(ρ_list, M_list, t0, dt, nsteps, params)
         t += dt;
         
         if params["local_M_on"]
-            Oprime_local = [getOprime(t, M_local[j], params) for j = 1:nS]
-            UL = [exp(-1im*( -(ν[j]-ν0)*Iz - α*cos(ω*t + dot(k, r[j,:]))*Oprime_local[j] )*dt) for j = 1:nS];
-            UR = [exp( 1im*( -(ν[j]-ν0)*Iz - α*cos(ω*t + dot(k, r[j,:]))*Oprime_local[j] )*dt) for j = 1:nS];
+            int = get_int(t, M_local, params)
+            U = [exp(-1im*( -(ν[j]-ν0)*Iz - int[j])*dt) for j = 1:nS];
         else
-            Oprime = getOprime(t, M, params)
-            UL = [exp(-1im*( -(ν[j]-ν0)*Iz - α*cos(ω*t + dot(k, r[j,:]))*Oprime )*dt) for j = 1:nS];
-            UR = [exp( 1im*( -(ν[j]-ν0)*Iz - α*cos(ω*t + dot(k, r[j,:]))*Oprime )*dt) for j = 1:nS];
+            int = get_int(t, M, params)
+            U = [exp(-1im*( -(ν[j]-ν0)*Iz - int[j])*dt) for j = 1:nS];
         end
         
         # time evolve
-        ρ_list = [UL[j]*ρ_list[j]*UR[j] for j = 1:nS];
+        ψ_list = [U[j]*ψ_list[j] for j = 1:nS];
         
         # update M and save value
-        M_eval = [tr(M_op*ρ_list[j]) for j = 1:nS]
+        M_eval = [tr(M_op*ψ*ψ') for ψ in ψ_list]
         M = sum(P.*M_eval);
         push!(M_list, M);
 
@@ -90,13 +82,34 @@ function time_propagate(ρ_list, M_list, t0, dt, nsteps, params)
                 
     end
     
-    return ρ_list, M_list, t
+    return ψ_list, M_list, t
     
 end
 
+function get_int(t, M, params)
+    
+    α = params["α"]
+    ω = params["ω"]
+    k = params["k"]
+    r = params["r"]
+    
+    if params["local_M_on"]
+        int = [α*cos(ω*t + dot(k, r[j]))*getOprime(t, M[j], params) for j = 1:params["nfreq"]]
+    else
+        Oprime = getOprime(t, M, params)
+        int = [α*cos(ω*t + dot(k, r[j]))*Oprime for j = 1:params["nfreq"]]
+    end
+    
+    return int
+
+end
+    
+
 function getOprime(t, M, params)
-   
+    
+    # interaction parameters
     ν0 = params["ν0"]
+    
     # Oprime = (1im/2)*[0 -exp(-1im*ν0*t); exp(1im*ν0*t) 0]; # Iy
     Oprime = (1/4)*[0 conj(M); M 0] - (1/4)*[0 M*exp(-2im*ν0*t); conj(M)*exp(2im*ν0*t) 0]; # IyMy
     # Oprime = (1im/4)*[0 -conj(M); M 0] + (1im/4)*[0 -M*exp(-2im*ν0*t); conj(M)*exp(2im*ν0*t) 0]; # IyMx
@@ -104,33 +117,6 @@ function getOprime(t, M, params)
     # Oprime = (1/4)*[0 conj(M); M 0] + (1/4)*[0 M*exp(-2im*ν0*t); conj(M)*exp(2im*ν0*t) 0]; #IxMx
     
     return Oprime
-    
-end
-
-# changes origin of the "M_stencil", which computes a local <M> (instead of global) for Oprime
-function M_stencil_shift(M_stencil, spin_idx)
-    
-    nx = size(M_stencil,1)
-    ny = size(M_stencil,2)
-    nz = size(M_stencil,3)
-    
-    # find the [x,y,z] coordinate for the givin spin index
-    tar_loc_mat = zeros(nx*ny*nz,1)
-    tar_loc_mat[spin_idx] = 1
-    tar_loc_mat = reshape(tar_loc_mat, (nx,ny,nz))
-    target_vec = (findall(x->x==1, tar_loc_mat)[1])
-    
-    # turn that coordinate into an array, with -1 for one-based indexing (e.g. no shift if at [1,1,1])
-    shift_vec = zeros(3)
-    shift_vec[1] = target_vec[1]-1
-    shift_vec[2] = target_vec[2]-1
-    shift_vec[3] = target_vec[3]-1
-
-    # move the stencil to the spin center
-    M_new = circshift(M_stencil, shift_vec)
-    
-    # return vectorized stencil
-    return reshape(M_new, (nx*ny*nz,1) )
     
 end
 

@@ -6,31 +6,56 @@ module MTools
 
 ## CALCULATE THE DATA
 
-    function getMstats(dat, idx_w_f=0.75, sym_w=50, min_cutoff=0.02, mean_range=50, rmse=false)
-
+    function Mstats_options()
+    
         # idx_w_f :  number of time indices on each side to keep as a fraction of ntau (to accomodate varying tau)
         # sym_w : number of time indices on each side to evaluate symmetry
         # min_cutoff : value of M to assess as a "dip"
         # mean_range : number of time indices on each side for evaluating the spread
         # rmse : alternate method to calculate asymmetry, by taking squared difference of signal when mirrored over ie (y(xL) - y(xR))^2
+        
+        f = Dict()
+        f["idx_w_f"] = 0.75
+        f["sym_w"] = 50
+        f["min_cutoff"] = 0.02
+        f["mean_range"] = 50
+        f["rmse"] = false
+        f["jld2"] = false
 
+        return f
+    
+    end
+
+    function getMstats(dat, options)
+
+        # load options
+        idx_w_f = options["idx_w_f"]
+        sym_w = options["sym_w"]
+        min_cutoff = options["min_cutoff"]
+        mean_range = options["mean_range"]
+        rmse = options["rmse"]
+    
         # calculate the dimensions of M_list
         idx_list, d = make_idx(dat["vars"], dat)
-        M_list = dat["M_list"];
+        if options["jld2"]
+            M_list = options["M_list"];
+        else
+            M_list = dat["M_list"];
 
-        # fix the "unwrapping" of multi-dim arrays by JSON
-        tempM_list = Array{Any}(undef, d)
-        for i in idx_list
-            tempI = ();
-            tempM = M_list;
-            for idx = 1:length(i)
-                tempI = (tempI..., i[idx])
-                tempM = tempM[i[idx]];
+            # fix the "unwrapping" of multi-dim arrays by JSON
+            tempM_list = Array{Any}(undef, d)
+            for i in idx_list
+                tempI = ();
+                tempM = M_list;
+                for idx = 1:length(i)
+                    tempI = (tempI..., i[idx])
+                    tempM = tempM[i[idx]];
+                end
+                # tempI = reverse(tempI)
+                tempM_list[tempI...] = tempM
             end
-            # tempI = reverse(tempI)
-            tempM_list[tempI...] = tempM
+            M_list = tempM_list;
         end
-        M_list = tempM_list;
 
         M_stats = Dict();
 
@@ -40,7 +65,11 @@ module MTools
             temp_dat = make_temp_params(dat, dat["vars"], i);
 
             # load and reformat M, t, nτ
-            M = [ x["re"] + im*x["im"] for x in M_list[i] ];
+            if options["jld2"]
+                M = M_list[i]
+            else
+                M = [ x["re"] + im*x["im"] for x in M_list[i] ];
+            end
             τ = temp_dat["τ"];
             nτ = temp_dat["nτ"];
             t = collect(LinRange(0, 3*τ*1e6, 3*nτ));
@@ -151,6 +180,8 @@ module MTools
 
     function make_Mstats_options(dat, var_key, var_units, dummy_idx, subplot_idxs)
     
+        idx_list, d = make_idx(dat["vars"], dat)
+    
         f = Dict()
         f["fsize"] = 9;
         f["rnd_digits"] = 3;
@@ -207,6 +238,10 @@ module MTools
             f["p1note_y"] = (t_ticks[2]/4, t_ticks[end-1])
             f["p1note_angle"] = (0, 0)
         end
+    
+        # scaling options
+        f["scaling"] = true
+        f["scale_list"] = ones(d)
 
         return f
     
@@ -283,6 +318,9 @@ module MTools
             max_idx = stats_h["max_idx"] # location of peaks between dips
             sigmas = stats_h["sigmas"] # second moment of peaks
             vals = stats_h["vals"] # height of peaks
+            if options["scaling"]
+                vals = vals/options["scale_list"][i]
+            end
             symms = stats_h["symms"] # asymmetry of peaks
             M = stats_h["M"]
             t = stats_h["t"]
@@ -365,6 +403,6 @@ module MTools
 
     end
 
-    export getMstats, make_Mstats_plot, make_Mstats_options
+    export getMstats, make_Mstats_plot, make_Mstats_options, Mstats_options
 
 end
