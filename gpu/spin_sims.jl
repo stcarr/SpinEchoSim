@@ -44,7 +44,6 @@ function time_propagate(ψ_list, M_list, t0, dt, nsteps, params)
     
     # additional values
     n = params["n"]
-    pbc = params["pbc"]
     spin_idx = params["spin_idx"]
     
     # experiment parameters
@@ -60,7 +59,7 @@ function time_propagate(ψ_list, M_list, t0, dt, nsteps, params)
     
     # prepare the stencils
     M_stencil = params["M_stencil"]
-    M_stencil_vec = shift_stencil_pbc(M_stencil, P, spin_idx, n)
+    M_stencil_vec = shift_stencil(M_stencil, P, spin_idx, n)
 
     # calculate the local magnetization ### HAVE TO FIX FOR DIFF DIMENSION MESHES
     M_eval = repeat(M_eval, 1, 1, n[1], n[2])
@@ -207,7 +206,6 @@ function time_propagate_liouville(ρ_list_L, M_list, t0, dt, nsteps, params)
     
     # additional values
     n = params["n"]
-    pbc = params["pbc"]
     spin_idx = params["spin_idx"]
     
     # interaction parameters
@@ -228,7 +226,7 @@ function time_propagate_liouville(ρ_list_L, M_list, t0, dt, nsteps, params)
 
     # prepare the stencils
     M_stencil = params["M_stencil"]
-    M_stencil_vec = shift_stencil_pbc(M_stencil, P, spin_idx, n)
+    M_stencil_vec = shift_stencil(M_stencil, P, spin_idx, n)
 
     # calculate the local magnetization ### HAVE TO FIX FOR DIFF DIMENSION MESHES
     M_eval = repeat(M_eval, 1, 1, n[1], n[2])
@@ -290,3 +288,19 @@ function getOprime(t, M, params)
     return Oprime
     
 end
+
+## CHECK FOR PERIODIC BOUNDARY CONDITIONS AND DO THE SHIFT
+function shift_stencil(stencil, P, spin_idx, n)
+
+    stencil = CuArray(stencil)
+    bigS = CUDA.zeros(n[1], n[2], n[1], n[2])
+
+    for v in spin_idx
+        shift = (spin_idx[v...][1] - 1, spin_idx[v...][2] - 1)
+        temp = P.*circshift(stencil, shift)
+        bigS[:,:,v[1],v[2]] = temp/sum(temp)
+    end
+
+    return bigS
+
+end   

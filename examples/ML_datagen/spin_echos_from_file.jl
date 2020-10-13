@@ -1,14 +1,14 @@
 
+using JLD2, StaticArrays, DelimitedFiles
 
-using Plots, StatsBase, LinearAlgebra, 
-      Statistics, JLD2, Dates,
-      StaticArrays, JSON
+fpath = "/home/stc/devspace/codes/SpinEchoSim/"
+
 # CPU, liouville part not cleaned up yet
-include("../SpinEchoSim_cpu.jl")
+include(join([fpath,"SpinEchoSim_cpu.jl"]))
 
 #GPU
 #using CUDA
-#include("../SpinEchoSim_gpu.jl")
+#include(join([fpath,"SpinEchoSim_gpu.jl"]))
 
 
 # setup the job
@@ -16,7 +16,7 @@ include("../SpinEchoSim_cpu.jl")
 α = [0.01];
 
 # number of frequencies
-n = (15, 15)
+n = (50, 50)
 
 # make the parameter file
 params = make_params();
@@ -77,27 +77,38 @@ params["U180"] = U180
 vars = ["α"]
 params["vars"] = vars;
 
+fname = "inputs.txt";
+input_params = readdlm(fname, Float64)
+num_samps = size(input_params)[1]
 
-α = 0.1; # correlation sterngth
-ξ = 10; # correlation length
-p = 4; # power
-stencil = make_stencil(r, ξ, p);
-# s_stencil = make_sparse_stencil(r, ξ, n, t1, t2, d_pow, d_coef)
-params["α"] = [α];
-params["M_stencil"] = stencil;
-params["ξ"] = ξ
+M_list = Array{Any}(undef, num_samps)
+for idx in range(1,length=num_samps)
 
-I, d = make_idx(vars, params)
-# generate temporary parameters
-tparams = make_temp_params(params, vars, I[1])
-
-# simulate
-#M = spin_echo_sim(tparams)
-M = spin_echo_sim_liouville(tparams)
-
-fname = "spinecho_M.jld2";
-@save fname M
+	α = input_params[idx,1]; # correlation sterngth
+	ξ = input_params[idx,2]; # correlation length
+	p = input_params[idx,3]; # correlation power
+        d = input_params[idx,4]; # dissipation power
 
 
+	print("starting echo ",string(idx),"/",string(num_samps),"\n")
 
+	stencil = make_stencil(r, ξ, p);
+	# s_stencil = make_sparse_stencil(r, ξ, n, t1, t2, d_pow, d_coef)
+        Γ = (0, 0, 10^(-d));
+        params["α"] = [α];
+	params["M_stencil"] = stencil;
+	params["ξ"] = ξ
+        params["Γ"] = Γ
+
+	I, d = make_idx(vars, params)
+	# generate temporary parameters
+	tparams = make_temp_params(params, vars, I[1])
+
+	# simulate
+	#M_list[idx] = spin_echo_sim(tparams)
+	M_list[idx] = spin_echo_sim_liouville(tparams)
+end
+
+fname = "echos.jld2";
+@save fname M_list
 

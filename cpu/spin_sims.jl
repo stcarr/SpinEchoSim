@@ -1,4 +1,7 @@
+## ONLY WORKS FOR BOTH DISSIPATION AND LOCAL M
+
 include("../lib/liouville_tools.jl")
+
 using .LiouvilleTools
 using LinearAlgebra
 
@@ -8,6 +11,7 @@ function spin_echo_sim(params)
     M_list = [];
     
     U90 = params["U90"];
+    U180 = params["U180"];
     
     # 90 pulse
     ψ_list = [U90*ψ for ψ in params["ψ_init"]];
@@ -17,7 +21,7 @@ function spin_echo_sim(params)
     ψ_list, M_list, t1 = time_propagate(ψ_list, M_list, t0, params["dt"], params["nτ"], params)
     
     # 180 pulse
-    ψ_list = [U90*U90*ψ for ψ in ψ_list];
+    ψ_list = [U180*ψ for ψ in ψ_list];
         
     # second tau
     ψ_list, M_list, t2 = time_propagate(ψ_list, M_list, t1, params["dt"], 2*params["nτ"], params)
@@ -39,6 +43,13 @@ function time_propagate(ψ_list, M_list, t0, dt, nsteps, params)
     M_op = params["M_op"]
     Iz = params["Iz"]
     
+    # additional values
+    n = params["n"]
+    spin_idx = params["spin_idx"]
+    
+    # experiment parameters
+    α = params["α"]
+    
     # initial time
     t = t0;
 
@@ -46,77 +57,42 @@ function time_propagate(ψ_list, M_list, t0, dt, nsteps, params)
     M_eval = [tr(M_op*ψ*ψ') for ψ in ψ_list]
     M = sum(P.*M_eval);
     
-    # see if we are doing a local stencil for Magnetization
-    if params["local_M_on"]
-        M_stencil = params["M_stencil"]
-        M_stencil_vec = [P.*shift_stencil(M_stencil, vec, params["n"], params["pbc"]) for vec in params["spin_idx"]]
-        M_stencil_vec = [M_stencil_vec[j]/sum(M_stencil_vec[j]) for j = 1:nS] # normalize
-        M_local = [sum(M_stencil_vec[j].*M_eval ) for j = 1:nS]
-    end
+    # prepare the stencils
+    M_stencil = params["M_stencil"]
+    M_stencil_vec = shift_stencil(M_stencil, P, spin_idx, n)
+
+    # calculate local M
+    M_local = [sum(M_eval.*M_stencil_vec[:,:,v[1],v[2]]) for v in spin_idx]
     
     # time evolve
     for idx = 1:nsteps
         
         t += dt;
-        
-        if params["local_M_on"]
-            int = get_int(t, M_local, params)
-            U = [exp(-1im*( -(ν[j]-ν0)*Iz - int[j])*dt) for j = 1:nS];
-        else
-            int = get_int(t, M, params)
-            U = [exp(-1im*( -(ν[j]-ν0)*Iz - int[j])*dt) for j = 1:nS];
-        end
+
+        # calculate interaction
+        Oprime = map(x -> (1/4)*[0 conj(x); x 0] - (1/4)*[0 x*exp(-2im*ν0*t); conj(x)*exp(2im*ν0*t) 0], M_local)
+        int = α*Oprime
+
+        # calculate propagators
+        H = -(ν.-ν0).*[Iz] .- int
+        U = map(exp, -1im*H*dt)
         
         # time evolve
-        ψ_list = [U[j]*ψ_list[j] for j = 1:nS];
+        ψ_list = U.*ψ_list;
         
-        # update M and save value
+        # calculate local M
         M_eval = [tr(M_op*ψ*ψ') for ψ in ψ_list]
+        
+        # calculate global M and save
         M = sum(P.*M_eval);
         push!(M_list, M);
-
-        # local Magnetization update
-        if params["local_M_on"]
-            M_local = [sum(M_stencil_vec[j].*M_eval ) for j = 1:nS]
-        end
-                
+        
+        # calculate local M
+        M_local = [sum(M_eval.*M_stencil_vec[:,:,v[1],v[2]]) for v in spin_idx]
+        
     end
     
     return ψ_list, M_list, t
-    
-end
-
-function get_int(t, M, params)
-    
-    α = params["α"]
-    ω = params["ω"]
-    k = params["k"]
-    r = params["r"]
-    
-    if params["local_M_on"]
-        int = [α*cos(ω*t + dot(k, r[j]))*getOprime(t, M[j], params) for j = 1:params["nfreq"]]
-    else
-        Oprime = getOprime(t, M, params)
-        int = [α*cos(ω*t + dot(k, r[j]))*Oprime for j = 1:params["nfreq"]]
-    end
-    
-    return int
-
-end
-    
-
-function getOprime(t, M, params)
-    
-    # interaction parameters
-    ν0 = params["ν0"]
-    
-    # Oprime = (1im/2)*[0 -exp(-1im*ν0*t); exp(1im*ν0*t) 0]; # Iy
-    Oprime = (1/4)*[0 conj(M); M 0] - (1/4)*[0 M*exp(-2im*ν0*t); conj(M)*exp(2im*ν0*t) 0]; # IyMy
-    # Oprime = (1im/4)*[0 -conj(M); M 0] + (1im/4)*[0 -M*exp(-2im*ν0*t); conj(M)*exp(2im*ν0*t) 0]; # IyMx
-    # Oprime = (1im/4)*[0 conj(M); -M 0] + (1im/4)*[0 -M*exp(-2im*ν0*t); conj(M)*exp(2im*ν0*t) 0]; # IxMy
-    # Oprime = (1/4)*[0 conj(M); M 0] + (1/4)*[0 M*exp(-2im*ν0*t); conj(M)*exp(2im*ν0*t) 0]; #IxMx
-    
-    return Oprime
     
 end
 
@@ -151,6 +127,60 @@ function spin_echo_sim_liouville(params)
 
 end
 
+function spin_echo_sim_liouville_cpmg(params)   
+    
+    # initialize M_list
+    M_list = [];
+    
+    UL90 = params["U90"];
+    UR90 = UL90'
+    
+    UL180 = params["U180"];
+    UR180 = UL180'
+    
+    # 90 pulse
+    ψ_list = [UL90*ψ for ψ in params["ψ_init"]];
+    
+    # convert to liouville space
+    ρ_list_L = [dm_H2L(ψ*ψ') for ψ in ψ_list];
+    
+    # initial time
+    t0 = 0.0;
+    nτ = convert(Int64, round(params["echo_time"]*params["γ"]/params["dt"]));
+    
+    # an array which holds the echoes individually
+    echoes = Array{Any}(undef, params["num_echoes"], nτ);
+    
+    # fid
+    ρ_list_L, M_list, t1 = time_propagate_liouville(ρ_list_L, M_list, t0, params["dt"], convert(Int64, round(nτ/2)), params)
+
+    # update t0
+    t0 = t1;
+    
+    ρ_list_L = [dm_H2L(UL180* dm_L2H(ρ_L) *UR180) for ρ_L in ρ_list_L];
+    
+    for echo_idx = 1:params["num_echoes"]
+    
+        # echo
+        ρ_list_L, M_list, t1 = time_propagate_liouville(ρ_list_L, M_list, t0, params["dt"], nτ, params)
+
+        # 180 pulse
+        ρ_list_L = [dm_H2L(UL180* dm_L2H(ρ_L) *UR180) for ρ_L in ρ_list_L];
+        
+        # update time
+        t0 = t1;
+        
+        # save echo
+        t0_idx = convert(Int64, round(nτ/2)) + (echo_idx-1)*nτ + 1
+        tf_idx = convert(Int64, round(nτ/2)) + echo_idx*nτ
+        echoes[echo_idx,:] = M_list[t0_idx:tf_idx];
+
+    end
+    
+  return M_list, echoes
+
+end
+
 function time_propagate_liouville(ρ_list_L, M_list, t0, dt, nsteps, params) 
             
     # spectrum info
@@ -163,9 +193,12 @@ function time_propagate_liouville(ρ_list_L, M_list, t0, dt, nsteps, params)
     M_op = params["M_op"]
     Iz = params["Iz"]
     
+    # additional values
+    n = params["n"]
+    spin_idx = params["spin_idx"]
+    
     # interaction parameters
     α = params["α"]
-    ω = params["ω"]
     
     # initial time
     t = t0;
@@ -176,47 +209,75 @@ function time_propagate_liouville(ρ_list_L, M_list, t0, dt, nsteps, params)
   
     # initial magnetization    
     M_L = leftop_H2L(M_op)
-    M_eval = [tr_L(M_L*ρ_list_L[j]) for j = 1:nS]
+    M_eval = [tr_L(M_L*ρ) for ρ in ρ_list_L]
     M = sum(P.*M_eval);
+
+    # prepare the stencils
+    M_stencil = params["M_stencil"]
+    M_stencil_vec = shift_stencil(M_stencil, P, spin_idx, n)
+
+    # calculate local M
+    M_local = [sum(M_eval.*M_stencil_vec[:,:,v[1],v[2]]) for v in spin_idx]
     
-    # see if we are doing a local stencil for Magnetization
-    if params["local_M_on"]
-        M_stencil = params["M_stencil"]
-        M_stencil_vec = [P.*M_stencil_shift(M_stencil,j) for j = 1:nS]
-        M_stencil_vec = [M_stencil_vec[j]/sum(M_stencil_vec[j]) for j = 1:nS] # normalize ?
-        M_local = [sum(M_stencil_list[j].*M_eval ) for j = 1:nS]
-    end    
-    
+    # time evolve
     for idx = 1:nsteps
         
         t += dt;
         
+        # calculate interaction
+        int = α*map(x -> (1/4)*[0 conj(x); x 0] - (1/4)*[0 x*exp(-2im*ν0*t); conj(x)*exp(2im*ν0*t) 0], M_local)
         
-        if params["local_M_on"]
-            Oprime_local = [getOprime(t, M_local[j], params) for j = 1:nS]
-            Ham_L = [HamToSuper( -(ν[j]-ν0)*Iz - α*cos(ω*t + dot(k, r[j,:]))*Oprime_local[j] ) for j = 1:nS]
-        else
-            Oprime = getOprime(t, M, params)
-            Ham_L = [HamToSuper( -(ν[j]-ν0)*Iz - α*cos(ω*t + dot(k, r[j,:]))*Oprime ) for j = 1:nS]
-        end                
+        # calculate hamiltonian
+        H_H = -(ν.-ν0).*[Iz] .- int
+        H_L = [HamToSuper(H) for H in H_H]
         
-        U_L = [exp((-1im*Ham_L[j] + J_L )*dt) for j = 1:nS]
+        # calculate propagators, adding in dissipation
+        U_L = [exp(( -1im*H + J_L )*dt) for H in H_L]
         
         # time evolve
-        ρ_list_L = [U_L[j]*ρ_list_L[j] for j = 1:nS]
+        ρ_list_L = U_L.*ρ_list_L
         
         # update M and save value
-        M_eval = [tr_L(M_L*ρ_list_L[j]) for j = 1:nS]
+        M_eval = [tr_L(M_L*ρ) for ρ in ρ_list_L]
         M = sum(P.*M_eval);
         push!(M_list, M)
 
-        # local Magnetization update
-        if params["local_M"]
-            M_local = [sum(M_stencil_vec[j].*M_eval ) for j = 1:nS]
-        end
+        # calculate local M
+        M_local = [sum(M_eval.*M_stencil_vec[:,:,v[1],v[2]]) for v in spin_idx]
         
     end
         
     return ρ_list_L, M_list, t
     
 end
+
+
+function getOprime(t, M, params)
+    
+    # interaction parameters
+    ν0 = params["ν0"]
+    
+    # Oprime = (1im/2)*[0 -exp(-1im*ν0*t); exp(1im*ν0*t) 0]; # Iy
+    Oprime = [(1/4)*[0 conj(x); x 0] - (1/4)*[0 x*exp(-2im*ν0*t); conj(x)*exp(2im*ν0*t) 0] for x in M]; # IyMy
+    # Oprime = (1im/4)*[0 -conj(M); M 0] + (1im/4)*[0 -M*exp(-2im*ν0*t); conj(M)*exp(2im*ν0*t) 0]; # IyMx
+    # Oprime = (1im/4)*[0 conj(M); -M 0] + (1im/4)*[0 -M*exp(-2im*ν0*t); conj(M)*exp(2im*ν0*t) 0]; # IxMy
+    # Oprime = (1/4)*[0 conj(M); M 0] + (1/4)*[0 M*exp(-2im*ν0*t); conj(M)*exp(2im*ν0*t) 0]; #IxMx
+    
+    return Oprime
+    
+end
+
+## CHECK FOR PERIODIC BOUNDARY CONDITIONS AND DO THE SHIFT
+function shift_stencil(stencil, P, spin_idx, n)
+
+    bigS = zeros(n[1], n[2], n[1], n[2])
+
+    for v in spin_idx
+        shift = (spin_idx[v...][1] - 1, spin_idx[v...][2] - 1)
+        temp = P.*circshift(stencil, shift)
+        bigS[:,:,v[1],v[2]] = temp/sum(temp)
+    end
+
+    return bigS
+
+end   
