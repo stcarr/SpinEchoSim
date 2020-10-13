@@ -1,7 +1,7 @@
 module MTools
 
-    include("SpinSimParams.jl")
-    using .SpinSimParams
+    #include("SpinSimParams.jl")
+    #using .SpinSimParams
     using Plots
 
 ## CALCULATE THE DATA

@@ -1,6 +1,6 @@
 ## ONLY WORKS FOR BOTH DISSIPATION AND LOCAL M
 
-include("liouville_tools.jl")
+include("../lib/liouville_tools.jl")
 using .LiouvilleTools
 using LinearAlgebra
 using CUDA

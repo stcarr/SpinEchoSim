@@ -1,6 +1,6 @@
 ## CURRENTLY ONLY SET UP FOR PERIODIC BOUNDARY CONDITIONS
 
-module spin_sim_functions
+module SpinSimParams
 
     using StaticArrays
     using StatsBase

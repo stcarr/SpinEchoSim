@@ -1,4 +1,4 @@
-include("liouville_tools.jl")
+include("../lib/liouville_tools.jl")
 using .LiouvilleTools
 using LinearAlgebra
 
@@ -125,18 +125,24 @@ function spin_echo_sim_liouville(params)
     # initialize M_list
     M_list = [];
     
-    UL90 = params["UL90"]
-    UR90 = params["UR90"]    
+    UL90 = params["U90"];
+    UR90 = UL90'
+    
+    UL180 = params["U180"];
+    UR180 = UL180'
     
     # 90 pulse
-    ρ_list_L = [dm_H2L(UL90*ρ*UR90) for ρ in params["ρ_init"]];    
+    ψ_list = [UL90*ψ for ψ in params["ψ_init"]];
+    
+    # convert to liouville space
+    ρ_list_L = [dm_H2L(ψ*ψ') for ψ in ψ_list];    
     
     # first tau
     t0 = 0.0;
     ρ_list_L, M_list, t1 = time_propagate_liouville(ρ_list_L, M_list, t0, params["dt"], params["nτ"], params)
     
     # 180 pulse
-    ρ_list_L = [dm_H2L(UL90*UL90* dm_L2H(ρ_L) *UR90*UR90) for ρ_L in ρ_list_L];
+    ρ_list_L = [dm_H2L(UL180* dm_L2H(ρ_L) *UR180) for ρ_L in ρ_list_L];
         
     # second tau
     ρ_list_L, M_list, t2 = time_propagate_liouville(ρ_list_L, M_list, t1, params["dt"], 2*params["nτ"], params)

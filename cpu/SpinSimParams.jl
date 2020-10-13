@@ -6,8 +6,7 @@ module SpinSimParams
     using LinearAlgebra
 
     ## MAKE DICTIONARY OF INDEPENDENT VARIABLES
-    function make_params(α, ω, n, bw = 0.5, γ = 2*pi*1e6, τ = 50e-6, dt = 2, ψ_0 = @SArray[1; 0], ν0 = 10)
-
+    function make_params(α, n, bw = 0.5, γ = 2*pi*1e6, τ = 50e-6, dt = 2, ψ_0 = @SArray[1; 0], ν0 = 10)
         f = Dict();
 
         # magnetization
@@ -28,7 +27,6 @@ module SpinSimParams
 
         # interaction variables
         f["α"] = α;
-        f["ω"] = ω;
 
         # spin ensemble variables
         f["ν0"] = ν0;
@@ -335,16 +333,19 @@ module SpinSimParams
     end
 
     ## MAKE STENCIL
-    function make_stencil(hlk, θ, n, r, ξ, pbc)
+    function make_stencil(hlk, θ, n, r, ξ, pbc, p)
 
         if pbc
 
             # calculate the stencil
-            stencil = zeros(size(r))
+            stencil = zeros(Float64, size(r))
             for temp_r in r
                 idx = findall(y -> y == temp_r, r)[1]
-                stencil[idx] = 1/(norm(temp_r)/ξ + 1)
+                stencil[idx] = 1/((norm(temp_r)/ξ)^p + 1)
             end
+        
+            # set self coupling to zero
+            stencil[1,1] = 0;
 
         else
 
@@ -353,11 +354,9 @@ module SpinSimParams
 
             # make a lattice 4x the size
             r_h, spin_idx_h = make_lattice(hlk, θ, new_n, true)
-            r_h = reshape(r_h, new_n)
-            spin_idx_h = reshape(spin_idx_h, new_n)
 
             # calculate the stencil
-            stencil = zeros(size(r_h))
+            stencil = zeros(Float64, size(r_h))
             for temp_r in r_h
                 idx = findall(y -> y == temp_r, r_h)[1]
                 stencil[idx] = 1/(norm(temp_r)/ξ + 1)
