@@ -13,7 +13,7 @@ d_list = 3.0 .+ 3.0*rand(num_samples,1);
 
 dat_array = hcat(alpha_list, xi_list, p_list, d_list)
 
-fname = "inputs.txt"
+fname = "mat_info.txt"
 
 open(fname,"w") do io
     writedlm(io,dat_array)
