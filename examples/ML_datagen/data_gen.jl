@@ -4,7 +4,7 @@ using DelimitedFiles
 # probably want about 100,000 samples
 # (will give 400 MB of echos)
 
-num_samples = 10;
+num_samples = 600;
 
 alpha_list = 0.2*rand(num_samples,1);
 xi_list = 20.0*rand(num_samples,1);

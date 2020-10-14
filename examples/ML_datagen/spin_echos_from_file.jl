@@ -1,14 +1,14 @@
 
-using JLD2, StaticArrays, DelimitedFiles
+using StaticArrays, DelimitedFiles
 
-fpath = "/home/stc/devspace/codes/SpinEchoSim/"
+fpath = "/users/scarr8/codes/SpinEchoSim/"
 
 # CPU, liouville part not cleaned up yet
-include(join([fpath,"SpinEchoSim_cpu.jl"]))
+#include(join([fpath,"SpinEchoSim_cpu.jl"]))
 
 #GPU
-#using CUDA
-#include(join([fpath,"SpinEchoSim_gpu.jl"]))
+using CUDA
+include(join([fpath,"SpinEchoSim_gpu.jl"]))
 
 
 # setup the job
@@ -109,6 +109,12 @@ for idx in range(1,length=num_samps)
 	M_list[idx] = spin_echo_sim_liouville(tparams)
 end
 
-fname = "echos.jld2";
-@save fname M_list
+fname_r = "echos_r.txt"
+fname_i = "echos_i.txt";
+open(fname_r, "w") do io
+	writedlm(io, real(M_list))
+end
+open(fname_i, "w") do io
+	writedlm(io, imag(M_list))
+end
 

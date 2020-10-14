@@ -1,6 +1,6 @@
 ## DISCRETE, PERIODIC BC, LIOUVILLE, DISSIPATION, STENCIL ONLY ##
 
-module SpinEchoParams
+module SpinSimParams
 
     using StaticArrays
     using StatsBase
