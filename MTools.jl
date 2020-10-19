@@ -206,7 +206,7 @@ module MTools
             r_τ = round(c_τ/2);
             step = var[2]-var[1];
             f["t_ticks"] = round.((var[1]-step):(c_τ+r_τ)/5:(c_τ+r_τ));
-        else
+        elseif "τ" in dat["vars"] && var_key != "τ"
             τ_idx = findall(y -> y == "τ", dat["vars"])[1]
             if τ_idx > var_idx
                 τ_idx -= 1;
@@ -215,9 +215,17 @@ module MTools
             c_τ = round(2*1e6*dat["τ"][τ_idx]);
             r_τ = round(c_τ/2)
             f["t_ticks"] = round.((c_τ-r_τ):2*r_τ/5:(c_τ+r_τ))
+        else
+            c_τ = round(2*1e6*dat["τ"]);
+            r_τ = round(c_τ/2)
+            f["t_ticks"] = round.((c_τ-r_τ):2*r_τ/5:(c_τ+r_τ))
         end
         f["M_ticks"] = 0:0.25:0.5
         f["var_ticks"] = round.(var[1]:(var[end]-var[1])/5:var[end], digits = f["rnd_digits"])
+    
+        # set log scale optionally
+        f["y_log"] = false
+        f["x_log"] = false
     
         # some labels
         f["p1_tlabel"] = "t (μs)"
@@ -283,7 +291,17 @@ module MTools
         subplot_Mlabel = options["subplot_Mlabel"]
 
         # create the subplot for the M_stats data (t vs var)
-        p1 = plot(legend=:none, framestyle=:box, xticks=var_ticks, yticks=t_ticks, xlims=var_lims, ylims=t_lims);
+        if options["y_log"]
+            if options["x_log"]
+                p1 = plot(legend=:none, framestyle=:box, xticks=var_ticks, yticks=t_ticks, xlims=var_lims, ylims=t_lims, xscale = :log10, y_scale = :log10);
+            else
+                p1 = plot(legend=:none, framestyle=:box, xticks=var_ticks, yticks=t_ticks, xlims=var_lims, ylims=t_lims, yscale = :log10);
+            end
+        elseif options["x_log"] && ~options["y_log"]
+            p1 = plot(legend=:none, framestyle=:box, xticks=var_ticks, yticks=t_ticks, xlims=var_lims, ylims=t_lims, xscale = :log10);
+        else
+            p1 = plot(legend=:none, framestyle=:box, xticks=var_ticks, yticks=t_ticks, xlims=var_lims, ylims=t_lims);
+        end
 
         # plot vertical lines at the subplot variable locations
         for i = 1:length(subplot_idxs)
