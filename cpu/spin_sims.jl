@@ -267,7 +267,6 @@ function getOprime(t, M, params)
     
 end
 
-## CHECK FOR PERIODIC BOUNDARY CONDITIONS AND DO THE SHIFT
 function shift_stencil(stencil, P, spin_idx, n)
 
     bigS = zeros(n[1], n[2], n[1], n[2])

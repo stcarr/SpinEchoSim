@@ -289,7 +289,6 @@ function getOprime(t, M, params)
     
 end
 
-## CHECK FOR PERIODIC BOUNDARY CONDITIONS AND DO THE SHIFT
 function shift_stencil(stencil, P, spin_idx, n)
 
     stencil = CuArray(stencil)
