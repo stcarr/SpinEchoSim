@@ -12,7 +12,7 @@
 module load julia/1.5.2
 module load cuda
 
-julia spin_echos_from_file.jl
+julia sample_sim.jl
 
 
 

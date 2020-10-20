@@ -1,15 +1,11 @@
-
-
-using Plots, StatsBase, LinearAlgebra, 
-      Statistics, JLD2, Dates,
-      StaticArrays, JSON
+fpath = "/users/csnider/SpinEchoSim/"
 
 # CPU, liouville part not cleaned up yet
-include("../SpinEchoSim_cpu.jl")
+#include(join([fpath,"SpinEchoSim_cpu.jl"]))
 
 # GPU
-# using CUDA
-# include("../SpinEchoSim_gpu.jl")
+using CUDA
+include(join([fpath,"SpinEchoSim_gpu.jl"]))
 
 ### setup the job
 
@@ -17,7 +13,7 @@ include("../SpinEchoSim_cpu.jl")
 params = make_params()
 
 # interaction
-params["α"] = 0.03;
+params["α"] = 0.1;
 
 # number of frequencies
 params["n"] = (50, 50)

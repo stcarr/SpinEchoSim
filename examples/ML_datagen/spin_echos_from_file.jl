@@ -1,7 +1,7 @@
 
 using StaticArrays, DelimitedFiles
 
-fpath = "/users/scarr8/codes/SpinEchoSim/"
+fpath = "/users/csnider/SpinEchoSim/"
 
 # CPU, liouville part not cleaned up yet
 #include(join([fpath,"SpinEchoSim_cpu.jl"]))
