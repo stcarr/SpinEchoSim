@@ -274,7 +274,7 @@ function shift_stencil(stencil, P, spin_idx, n)
     for v in spin_idx
         shift = (spin_idx[v...][1] - 1, spin_idx[v...][2] - 1)
         temp = P.*circshift(stencil, shift)
-        bigS[:,:,v[1],v[2]] = temp/sum(temp)
+        bigS[:,:,v[1],v[2]] = temp # /sum(temp)
     end
 
     return bigS
