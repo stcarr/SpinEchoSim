@@ -274,21 +274,26 @@ module SpinSimParams
     end
 
     ## MAKE STENCIL
-    function make_stencil(r, ξ, p)
+    function make_stencil(r, ξ, p, func)
 
         # calculate the stencil
         stencil = zeros(Float64, size(r))
         for temp_r in r
             idx = findall(y -> y == temp_r, r)[1]
-            stencil[idx] = 1/((norm(temp_r)/ξ)^p)
+            rh = norm(temp_r)
+        
+            if func == 0 # gaussian-like (with power)
+                stencil[idx] = exp(-(rh/ξ)^p)
+            elseif func == 1 # basic power law, no xi dependence
+                stencil[idx] = rh^(-p)
+            elseif func == 2 # RKKY-like, no power dependence
+                xh = 2*(rh/ξ)
+                stencil[idx] = xh^(-4)*( xh*cos(xh) - sin(xh) )
+            else # default to uniform stencil
+                stencil[idx] = 1.0
+            end
+           
         end
-
-        # set self coupling to zero
-        stencil[1,1] = 0;
-
-        return stencil
-
-    end
 
     ## CUSTOM DISTRIBUTIONS
     function lorentzian(x, μ, Γ)
