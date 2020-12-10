@@ -273,21 +273,23 @@ module SpinSimParams
     end
 
     ## MAKE STENCIL
-    function make_stencil(r, ξ, p, func)
+    function make_stencil(r, ξ, p, func=0, s_w=1.0, p_w=0.0, d_w=0.0)
 
         # calculate the stencil
         stencil = zeros(Float64, size(r))
         for temp_r in r
             idx = findall(y -> y == temp_r, r)[1]
             rh = norm(temp_r)
+            theta = atan(temp_r[2],temp_r[1])
+            ang_fac = (s_w + p_w*cos(theta) + d_w*cos(2.0*theta))
         
             if func == 0 # gaussian-like (with power)
-                stencil[idx] = exp(-(rh/ξ)^p)
+                stencil[idx] = ang_fac*exp(-(rh/ξ)^p)
             elseif func == 1 # basic power law, no xi dependence
-                stencil[idx] = rh^(-p)
+                stencil[idx] = ang_fac*rh^(-p)
             elseif func == 2 # RKKY-like, no power dependence
                 xh = 2*(rh/ξ)
-                stencil[idx] = xh^(-4)*( xh*cos(xh) - sin(xh) )
+                stencil[idx] = ang_fac*xh^(-4)*( xh*cos(xh) - sin(xh) )
             else # default to uniform stencil
                 stencil[idx] = 1.0
             end
