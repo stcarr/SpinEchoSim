@@ -131,7 +131,8 @@ module SpinSimParams
         # discrete frequency sampling
         x = collect(LinRange(f["ν0"] - f["bw"]/2, f["ν0"] + f["bw"]/2, f["nfreq"]))
         f["ν"] = convert.(Complex{Float32}, sample(x, Weights(lorentzian.(x, f["ν0"], f["line_width"])), f["n"]))
-        f["P"] = convert.(Complex{Float32}, fill(1/prod(f["n"]), f["n"]))
+        #f["P"] = convert.(complex{float32}, fill(1/prod(f["n"]), f["n"])) 
+        f["P"] = convert.(complex{float32}, fill(1, f["n"]))
         f["ψ_init"] = fill(f["ψ0"], f["n"])
 
         # calculate dissipation jump operators

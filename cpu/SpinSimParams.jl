@@ -129,8 +129,16 @@ module SpinSimParams
 
         # discrete frequency sampling
         x = collect(LinRange(f["ν0"] - f["bw"]/2, f["ν0"] + f["bw"]/2, f["nfreq"]))
+        
         f["ν"] = convert.(Complex{Float32}, sample(x, Weights(lorentzian.(x, f["ν0"], f["line_width"])), f["n"]))
-        f["P"] = convert.(Complex{Float32}, fill(1/prod(f["n"]), f["n"]))
+        # f["P"] = convert.(Complex{Float32}, fill(1/prod(f["n"]), f["n"]))
+        f["P"] = convert.(Complex{Float32}, fill(1, f["n"]))
+        
+        # integrated sampling
+        f["ν"] = reshape(x,f["n"])
+        f["P"] = reshape(lorentzian.(x, f["ν0"], f["line_width"]).*(x[2]-x[1]),f["n"])
+        
+    
         f["ψ_init"] = fill(f["ψ0"], f["n"])
 
         # calculate dissipation jump operators
@@ -273,7 +281,7 @@ module SpinSimParams
     end
 
     ## MAKE STENCIL
-    function make_stencil(r, ξ, p, func=0, s_w=1.0, p_w=0.0, d_w=0.0)
+    function make_stencil(r, ξ, p, func=0, afm=false, s_w=1.0, p_w=0.0, d_w=0.0)
 
         # calculate the stencil
         stencil = zeros(Float64, size(r))
@@ -284,7 +292,7 @@ module SpinSimParams
             ang_fac = (s_w + p_w*cos(theta) + d_w*cos(2.0*theta))
         
             if func == 0 # gaussian-like (with power)
-                stencil[idx] = ang_fac*exp(-(rh/ξ)^p)
+                stencil[idx] = ang_fac*exp(-(rh/ξ)^2)
             elseif func == 1 # basic power law, no xi dependence
                 stencil[idx] = ang_fac*rh^(-p)
             elseif func == 2 # RKKY-like, no power dependence
@@ -292,6 +300,11 @@ module SpinSimParams
                 stencil[idx] = ang_fac*xh^(-4)*( xh*cos(xh) - sin(xh) )
             else # default to uniform stencil
                 stencil[idx] = 1.0
+            end
+
+            if (afm) # +/- alternating every bond
+                sign_here = -2*mod( Tuple(idx)[2] - Tuple(idx)[1] ,2)+1
+                stencil[idx] = sign_here*stencil[idx]
             end
            
         end
