@@ -1,0 +1,3 @@
+Directory of Julia-based spin echo simulations, for interacting nuclei at mean-field level.
+See "examples/sample_sim.jl" for a single-run simulation, and "paper_figures" for notebooks for the first two figures in the companion paper.
+
