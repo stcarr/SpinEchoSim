@@ -217,8 +217,9 @@ function time_propagate_liouville(ρ_list_L, M_list, Mz_list, t0, dt, nsteps, pa
     spin_idx = params["spin_idx"]
 
     # interaction parameters
-    α = params["α"]
-    α_z = params["α_z"]
+    α_mat = params["α_mat"]
+    #α_y = params["α_y"]
+    #α_z = params["α_z"]
 
     # initial time
     t = t0;
@@ -256,9 +257,38 @@ function time_propagate_liouville(ρ_list_L, M_list, Mz_list, t0, dt, nsteps, pa
         t += dt;
 
         # calculate interaction
-        #int = α*map(x -> (1/4)*[0 conj(x); x 0] - (1/4)*[0 x*exp(-2im*ν0*t); conj(x)*exp(2im*ν0*t) 0], M_local)
-        int =  α.*(Mx_local.*[Ix] + My_local.*[Iy]) + α_z .* Mz_local.*[Iz]
+        #int_x = α_x*map(x -> (1/4)*[0 conj(x); x 0] - (1/4)*[0 x*exp(-2im*ν0*t); conj(x)*exp(2im*ν0*t) 0], Mx_local)
+        #int_y = α_x*map(x -> (1/4)*[0 conj(x); x 0] - (1/4)*[0 x*exp(-2im*ν0*t); conj(x)*exp(2im*ν0*t) 0], Mx_local)
+        #int_x = Mx_local .* cos(ν0*t) + My_local .* sin(ν0*t)
+        #int_y = My_local .* cos(ν0*t) - Mx_local .* sin(ν0*t)
+        #int_z = α_z .* Mz_local
 
+        int = 0 .* Mx_local .* [Ix];
+        for d2 = 1:3
+
+            if d2 == 1
+                M_h = Mx_local .* cos(ν0*t) + My_local .* sin(ν0*t)
+            elseif d2 == 2
+                M_h = My_local .* cos(ν0*t) - Mx_local .* sin(ν0*t)
+            elseif d2 == 3
+                M_h = Mz_local
+            end
+
+            for d1 = 1:3
+
+                if d1 == 1
+                    I_h = Ix .* cos(ν0*t) + Iy .* sin(ν0*t)
+                elseif d1 == 2
+                    I_h = Iy .* cos(ν0*t) - Ix .* sin(ν0*t)
+                elseif d1 == 3
+                    I_h = Iz
+                end
+
+                int = int .+ α_mat[d1,d2] .* M_h .* [I_h];
+
+            end
+        end
+        #int =  α.*(Mx_local.*[Ix] + My_local.*[Iy]) + α_z .* Mz_local.*[Iz]
         # calculate hamiltonian
         H_H = -(ν.-ν0).*[Iz] .- int
         H_L = [HamToSuper(H) for H in H_H]
