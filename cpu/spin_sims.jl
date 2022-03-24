@@ -5,149 +5,14 @@ include("../lib/liouville_tools.jl")
 using .LiouvilleTools
 using LinearAlgebra
 
-function spin_echo_sim(params)
-
-    # initialize M_list
-    M_list = [];
-
-    U90 = params["U90"];
-    U180 = params["U180"];
-
-    # 90 pulse
-    ψ_list = [U90*ψ for ψ in params["ψ_init"]];
-
-    # first tau
-    t0 = 0.0;
-    ψ_list, M_list, t1 = time_propagate(ψ_list, M_list, t0, params["dt"], params["nτ"], params)
-
-    # 180 pulse
-    ψ_list = [U180*ψ for ψ in ψ_list];
-
-    # second tau
-    ψ_list, M_list, t2 = time_propagate(ψ_list, M_list, t1, params["dt"], 2*params["nτ"], params)
-
-  return M_list
-
-end
-
-function time_propagate(ψ_list, M_list, t0, dt, nsteps, params)
-
-    # spectrum info
-    ν0 = params["ν0"] # central freq.
-    ν = params["ν"] # spin freqs.
-    P = params["P"] # spin weights
-    nS = params["nfreq"] # number of spins
-    r = params["r"] # positions of spins
-
-    # operators
-    M_op = params["M_op"]
-    Ix = params["Ix"]
-    Iy = params["Iy"]
-    Iz = params["Iz"]
-
-    # additional values
-    n = params["n"]
-    spin_idx = params["spin_idx"]
-
-    # experiment parameters
-    α = params["α"]
-
-    # initial time
-    t = t0;
-
-    # initial magnetization
-    M_eval = [tr(M_op*ψ*ψ') for ψ in ψ_list]
-    Mx = [tr(Ix*ψ*ψ') for ψ in ψ_list]
-    My = [tr(Iy*ψ*ψ') for ψ in ψ_list]
-    Mz = [tr(Iz*ψ*ψ') for ψ in ψ_list]
-
-    M = sum(P.*M_eval);
-
-    # prepare the stencils
-    M_stencil = params["M_stencil"]
-    M_stencil_vec = shift_stencil(M_stencil, P, spin_idx, n)
-
-    # calculate local M
-    #M_local = [sum(M_eval.*M_stencil_vec[:,:,v[1],v[2]]) for v in spin_idx]
-    Mx_local = [sum(Mx.*M_stencil_vec[:,:,v[1],v[2]]) for v in spin_idx]
-    My_local = [sum(My.*M_stencil_vec[:,:,v[1],v[2]]) for v in spin_idx]
-    Mz_local = [sum(Mz.*M_stencil_vec[:,:,v[1],v[2]]) for v in spin_idx]
-
-    # time evolve
-    for idx = 1:nsteps
-
-        t += dt;
-
-        # calculate interaction
-        #int = α.*map(x -> (1/4)*[0 conj(x); x 0] - (1/4)*[0 x*exp(-2im*ν0*t); conj(x)*exp(2im*ν0*t) 0], M_local)
-        int = α.*(Mx_local.*[Ix] + My_local.*[Iy] + Mz_local.*[Iz])
-
-        # calculate propagators
-        H = -(ν.-ν0).*[Iz] .- int
-        U = map(exp, -1im*H*dt)
-
-        # time evolve
-        ψ_list = U.*ψ_list;
-
-        # calculate local M
-        M_eval = [tr(M_op*ψ*ψ') for ψ in ψ_list]
-        Mx = [tr(Ix*ψ*ψ') for ψ in ψ_list]
-        My = [tr(Iy*ψ*ψ') for ψ in ψ_list]
-        Mz = [tr(Iz*ψ*ψ') for ψ in ψ_list]
-
-        # calculate global M and save
-        M = sum(P.*M_eval);
-        push!(M_list, M);
-
-        # calculate local M
-        #M_local = [sum(M_eval.*M_stencil_vec[:,:,v[1],v[2]]) for v in spin_idx]
-        Mx_local = [sum(Mx.*M_stencil_vec[:,:,v[1],v[2]]) for v in spin_idx]
-        My_local = [sum(My.*M_stencil_vec[:,:,v[1],v[2]]) for v in spin_idx]
-        Mz_local = [sum(Mz.*M_stencil_vec[:,:,v[1],v[2]]) for v in spin_idx]
-
-    end
-
-    return ψ_list, M_list, t
-
-end
-
 function spin_echo_sim_liouville(params)
 
     # initialize M_list
     M_list = [];
     Mz_list = [];
 
-    UL90 = params["U90"];
-    UR90 = UL90'
-
-    UL180 = params["U180"];
-    UR180 = UL180'
-
-    # 90 pulse
-    ψ_list = [UL90*ψ for ψ in params["ψ_init"]];
-
-    # convert to liouville space
-    ρ_list_L = [dm_H2L(ψ*ψ') for ψ in ψ_list];
-
-    # first tau
-    t0 = 0.0;
-    ρ_list_L, M_list, Mz_list, t1 = time_propagate_liouville(ρ_list_L, M_list, Mz_list, t0, params["dt"], params["nτ"], params)
-
-    # 180 pulse
-    ρ_list_L = [dm_H2L(UL180* dm_L2H(ρ_L) *UR180) for ρ_L in ρ_list_L];
-
-    # second tau
-    ρ_list_L, M_list, Mz_list, t2 = time_propagate_liouville(ρ_list_L, M_list, Mz_list, t1, params["dt"], 2*params["nτ"], params)
-
-  return M_list, Mz_list
-
-end
-
-function spin_echo_sim_liouville_cpmg(params)
-
-    # initialize M_list
-    M_list = [];
-    Mz_list = [];
+    pl1 = params["pulse_length1"]*params["γ"];
+    pl2 = params["pulse_length2"]*params["γ"];
 
     UL90 = params["U90"];
     UR90 = UL90'
@@ -155,50 +20,53 @@ function spin_echo_sim_liouville_cpmg(params)
     UL180 = params["U180"];
     UR180 = UL180'
 
-    # 90 pulse
-    ψ_list = [UL90*ψ for ψ in params["ψ_init"]];
+    null_operator = 0*UL90
 
-    # convert to liouville space
-    ρ_list_L = [dm_H2L(ψ*ψ') for ψ in ψ_list];
-
-    # initial time
+    ρ_list_L = [dm_H2L(ψ*ψ') for ψ in params["ψ_init"]];
     t0 = 0.0;
-    nτ = convert(Int64, round(params["echo_time"]*params["γ"]/params["dt"]));
 
-    # an array which holds the echoes individually
-    echoes = Array{Any}(undef, params["num_echoes"], nτ);
-
-    # fid
-    ρ_list_L, M_list, Mz_list, t1 = time_propagate_liouville(ρ_list_L, M_list, Mz_list, t0, params["dt"], convert(Int64, round(nτ/2)), params)
-
-    # update t0
-    t0 = t1;
-
-    ρ_list_L = [dm_H2L(UL180* dm_L2H(ρ_L) *UR180) for ρ_L in ρ_list_L];
-
-    for echo_idx = 1:params["num_echoes"]
-
-        # echo
-        ρ_list_L, M_list, Mz_list, t1 = time_propagate_liouville(ρ_list_L, M_list, Mz_list, t0, params["dt"], nτ, params)
-
-        # 180 pulse
-        ρ_list_L = [dm_H2L(UL180* dm_L2H(ρ_L) *UR180) for ρ_L in ρ_list_L];
-
-        # update time
-        t0 = t1;
-
-        # save echo
-        t0_idx = convert(Int64, round(nτ/2)) + (echo_idx-1)*nτ + 1
-        tf_idx = convert(Int64, round(nτ/2)) + echo_idx*nτ
-        echoes[echo_idx,:] = M_list[t0_idx:tf_idx];
-
+    # 90 pulse
+    if (pl1 == 0)
+        t1 = t0;
+        ρ_list_L = [dm_H2L(UL90* dm_L2H(ρ_L) *UR90) for ρ_L in ρ_list_L];
+    else
+        nt_p1 = round(pl1/params["dt"])
+        p90 = (params["R90"]/(nt_p1))
+        ρ_list_L, M_list, Mz_list, t1 = time_propagate_liouville(ρ_list_L, M_list, Mz_list, t0, params["dt"], nt_p1, p90, params)
     end
 
-  return M_list, Mz_list, echoes
+    # first tau
+    # center 0 at center of pulse 1, tau at center of pulse 2
+    tau = params["dt"]*params["nτ"]
+    eff_tau =  tau - (pl1 + pl2)/2.0;
+    eff_nt = round(eff_tau/params["dt"])
+    ρ_list_L, M_list, Mz_list, t2 = time_propagate_liouville(ρ_list_L, M_list, Mz_list, t1, params["dt"], eff_nt, null_operator, params)
+
+    # 180 pulse
+    if (pl2 == 0)
+        t3 = t2;
+        ρ_list_L = [dm_H2L(UL180* dm_L2H(ρ_L) *UR180) for ρ_L in ρ_list_L];
+    else
+        nt_p2 = round(pl2/params["dt"])
+        p180 = (params["R180"]/(nt_p2))
+        ρ_list_L, M_list, Mz_list, t3 = time_propagate_liouville(ρ_list_L, M_list, Mz_list, t2, params["dt"], nt_p2, p180, params)
+    end
+
+    # end of 180 pulse to 3 tau
+    eff_tau =  2.0*tau - pl2/2.0;
+    eff_nt = round(eff_tau/params["dt"])
+    ρ_list_L, M_list, Mz_list, t4 = time_propagate_liouville(ρ_list_L, M_list, Mz_list, t3, params["dt"], eff_nt, null_operator, params)
+
+    t_max = t4/params["γ"]*1e6
+    t_origin = t1/(2.0*params["γ"])*1e6;
+
+    t_arr = collect(  range(-t_origin, stop=t_max-t_origin, length=size(M_list,1))  )
+
+  return M_list, Mz_list, t_arr
 
 end
 
-function time_propagate_liouville(ρ_list_L, M_list, Mz_list, t0, dt, nsteps, params)
+function time_propagate_liouville(ρ_list_L, M_list, Mz_list, t0, dt, nsteps, M_c, params)
 
     # spectrum info
     ν0 = params["ν0"] # central freq.
@@ -211,6 +79,7 @@ function time_propagate_liouville(ρ_list_L, M_list, Mz_list, t0, dt, nsteps, pa
     Ix = params["Ix"]
     Iy = params["Iy"]
     Iz = params["Iz"]
+    #M_c, given, constant operator
 
     # additional values
     n = params["n"]
@@ -290,7 +159,7 @@ function time_propagate_liouville(ρ_list_L, M_list, Mz_list, t0, dt, nsteps, pa
         end
         #int =  α.*(Mx_local.*[Ix] + My_local.*[Iy]) + α_z .* Mz_local.*[Iz]
         # calculate hamiltonian
-        H_H = -(ν.-ν0).*[Iz] .- int
+        H_H = -(ν.-ν0).*[Iz] .- int .+ ones(size(ν)).*[M_c]
         H_L = [HamToSuper(H) for H in H_H]
 
         # calculate propagators, adding in dissipation

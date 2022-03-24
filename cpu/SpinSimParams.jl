@@ -45,6 +45,10 @@ module SpinSimParams
         f["echo_time"] = 10e-6
         f["num_echoes"] = 50
 
+        # pulse length variables
+        f["pulse_length1"] = 0.0 # instant pulse
+        f["pulse_length2"] = 0.0 # instant pulse
+
         return f
 
     end
@@ -74,7 +78,7 @@ module SpinSimParams
                 f[v] = temp[I[idx]]; # reassign based on iteration index
                 num_idx_assign += 1 # progress counter
 
-            # check for other options: 
+            # check for other options:
             # option 1: tuple of strings (x, y): two variables x and y vary together
             # option 2: tuple of tuples and strings (z(x,y), (x, y)): variable z dependent on two other varibles x and y
             else
@@ -101,7 +105,7 @@ module SpinSimParams
                     num_idx_assign += maximum(L)[1] # progress counter by amount = number of independent variables (ie how many xs, ys)
 
                 # option 1
-                else    
+                else
                     for x in v
                         temp = f[x]; # load x, y
                         f[x] = temp[I[idx]]; # assign x, y using the same index
@@ -118,6 +122,8 @@ module SpinSimParams
         flip_angle = f["flip_angle"]
         R90 = f["Ix"]*cos(phases[1]) + f["Iy"]*sin(phases[1])
         R180 = f["Ix"]*cos(phases[2]) + f["Iy"]*sin(phases[2])
+        f["R90"] =    flip_angle*R90
+        f["R180"] = 2*flip_angle*R180
         f["U90"] = convert.(Complex{Float32}, exp(-1im*flip_angle*R90));
         f["U180"] = convert.(Complex{Float32}, exp(-1im*2*flip_angle*R180));
 
@@ -129,16 +135,16 @@ module SpinSimParams
 
         # discrete frequency sampling
         x = collect(LinRange(f["ν0"] - f["bw"]/2, f["ν0"] + f["bw"]/2, f["nfreq"]))
-        
+
         f["ν"] = convert.(Complex{Float32}, sample(x, Weights(lorentzian.(x, f["ν0"], f["line_width"])), f["n"]))
         # f["P"] = convert.(Complex{Float32}, fill(1/prod(f["n"]), f["n"]))
         f["P"] = convert.(Complex{Float32}, fill(1, f["n"]))
-        
+
         # integrated sampling
         f["ν"] = reshape(x,f["n"])
         f["P"] = reshape(lorentzian.(x, f["ν0"], f["line_width"]).*(x[2]-x[1]),f["n"])
-        
-    
+
+
         f["ψ_init"] = fill(f["ψ0"], f["n"])
 
         # calculate dissipation jump operators
@@ -268,7 +274,7 @@ module SpinSimParams
 
                     end
                 end
-            end               
+            end
 
             # create array where element = index of element
             f = sample(1:prod(d), d, replace = false)
@@ -290,7 +296,7 @@ module SpinSimParams
             rh = norm(temp_r)
             theta = atan(temp_r[2],temp_r[1])
             ang_fac = (s_w + p_w*cos(theta) + d_w*cos(2.0*theta))
-        
+
             if func == 0 # gaussian-like (with power)
                 stencil[idx] = ang_fac*exp(-(rh/ξ)^2)
             elseif func == 1 # basic power law, no xi dependence
@@ -306,7 +312,7 @@ module SpinSimParams
                 sign_here = -2*mod( Tuple(idx)[2] - Tuple(idx)[1] ,2)+1
                 stencil[idx] = sign_here*stencil[idx]
             end
-           
+
         end
 
         # set self coupling to zero
